@@ -1,0 +1,40 @@
+expression = _{ SOI ~ general_expression ~ EOI }
+
+general_expression = { comparison_expression | numeric_expression | boolean_expression | string_literal }
+
+comparison_expression = { numeric_expression ~ comparison_operator ~ numeric_expression }
+numeric_expression = { numeric_term ~ ( (plus | minus) ~ numeric_term )* }
+numeric_term = _{ numeric_factor ~ ( (mul | div) ~ numeric_factor )* }
+numeric_factor = _{ "(" ~ numeric_expression ~ ")" | function_call | boolean_expression | field_reference | number }
+
+boolean_expression = { boolean_term ~ ( (or_op) ~ boolean_term )* }
+boolean_term = _{ boolean_factor ~ ( (and_op) ~ boolean_factor )* }
+boolean_factor = _{ boolean_literal | "(" ~ general_expression ~ ")" }
+
+function_call = { identifier ~ "(" ~ function_arguments ~ ")" }
+function_arguments = { function_argument ~ ("," ~ function_argument)* }
+function_argument = _{ numeric_expression | string_literal | field_reference }
+
+string_literal = @{ "\"" ~ (raw_string_character | escaped_character)* ~ "\"" }
+raw_string_character = @{ (!"\"" ~ !"\\" ~ ANY) }
+escaped_character = @{ "\\" ~ ( "\"" | "\\" ) }
+
+identifier = @{ (LETTER | "_") ~ (LETTER | "_" | ASCII_DIGIT)* }
+field_reference = @{ (identifier ~ "." ~ identifier) | identifier }
+
+number = _{ float | integer }
+integer = @{ "-"? ~ ASCII_DIGIT+ ~ (exp ~ ("+" | "-")? ~ ASCII_DIGIT+)?}
+float = @{ "-"? ~ ASCII_DIGIT* ~ "." ~ ASCII_DIGIT+ ~ (exp ~ ("+" | "-")? ~ ASCII_DIGIT+)?}
+exp = @{ "e" | "E" }
+
+comparison_operator = @{ "==" | "!=" | "<" | "<=" | ">" | ">=" }
+and_op = @{ "and" | "AND" }
+or_op = @{ "or" | "OR" }
+boolean_literal = @{ "true" | "false" | "TRUE" | "FALSE" }
+
+plus = @{ "+" }
+minus = @{ "-" }
+mul = @{ "*" }
+div = @{ "/" }
+
+WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
