@@ -2,7 +2,7 @@ use pest::iterators::Pair;
 use pest::Parser;
 use pest_derive::Parser;
 
-#[derive(  Parser)]
+#[derive(Parser)]
 #[grammar = "expression.pest"]
 pub struct ExpressionParser;
 
