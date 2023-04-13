@@ -15,7 +15,7 @@ literal = _{ number | boolean_literal | string_literal }
 
 function_call = { identifier ~ "(" ~ function_arguments ~ ")" }
 function_arguments = { function_argument ~ ("," ~ function_argument)* }
-function_argument = _{ string_literal | field_reference | expr_top }
+function_argument = _{ expr_top }
 
 string_literal = @{ "\"" ~ (raw_string_character | escaped_character)* ~ "\"" }
 raw_string_character = @{ (!"\"" ~ !"\\" ~ ANY) }
