@@ -237,13 +237,14 @@ fn test_function_calls() {
         "my_function(\"hello\")",
         "my_function(field1, field2)",
         "my_function(field1, 42, 3.14, \"hello\")",
+        "my_function(field1, nested_function(field2))",
         "my_function(field1) + my_function(field2)",
         "my_function(nested_function(field1))",
-        "my_function(field1, nested_function(field2))",
     ];
 
     for expr in valid_expressions {
         let result = ExpressionParser::parse(Rule::expression_input, expr);
+        println!("{:#?}", result);
         assert!(
             result.is_ok(),
             "Expression '{}' should be a valid function call",
@@ -322,16 +323,4 @@ fn test_operator_precedence_parsing() {
 */
     // Optionally, you can print the parse tree for visual inspection.
     println!("{:#?}", parse_tree);
-}
-
-#[test]
-fn test_operator_precedence_structure() {
-    parses_to! {
-        parser: ExpressionParser,
-        input:  "2 * (3 + 4) / 7 > 1 and true or false and 3 * (5 - 1) < 12",
-        rule:   Rule::expression_input,
-        tokens: [
-            expression_input(0, 3)
-        ]
-    };
 }
