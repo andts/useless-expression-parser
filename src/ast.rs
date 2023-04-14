@@ -1,6 +1,6 @@
+#[derive(Debug)]
 pub enum Expression {
     Literal {
-        value_type: DataType,
         value: LiteralValue,
     },
     FieldReference {
@@ -12,12 +12,14 @@ pub enum Expression {
     },
 }
 
+#[derive(Debug)]
 pub enum DataType {
     String,
     Number,
     Boolean,
 }
 
+#[derive(Debug)]
 pub enum LiteralValue {
     StringValue { value: String },
     NumberValue { value: f64 },

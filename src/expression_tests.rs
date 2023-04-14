@@ -1,7 +1,6 @@
 use pest::Parser;
-use crate::{ExpressionParser, Rule};
 
-use pest::{parses_to, consumes_to};
+use crate::{ExpressionParser, Rule};
 
 #[test]
 fn test_valid_arithmetic_expressions() {
