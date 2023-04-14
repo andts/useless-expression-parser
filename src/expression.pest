@@ -9,13 +9,25 @@ comp_operand = { add_operand ~ (comparison_operator ~ add_operand)* }
 add_operand = { mul_operand ~ ((plus | minus) ~ mul_operand)* }
 mul_operand = { primary_expression ~ ((mul | div) ~ primary_expression)* }
 
-primary_expression = _{ literal | function_call | field_reference | "(" ~ expr_top ~ ")" }
+primary_expression = _{ 
+    if_expr | case_expr | 
+    literal | function_call | field_reference |
+    "(" ~ expr_top ~ ")" 
+}
 
 literal = _{ number | boolean_literal | string_literal }
 
 function_call = { identifier ~ "(" ~ function_arguments ~ ")" }
 function_arguments = { function_argument ~ ("," ~ function_argument)* }
 function_argument = _{ expr_top }
+
+if_expr = { if_branch ~ else_branch ~ ^"end" }
+if_branch = { ^"if" ~ expr_top ~ ^"then" ~ expr_top }
+else_branch = { ^"else" ~ expr_top }
+
+case_expr = { ^"case" ~ branch_expr ~ else_branch? ~ ^"end" }
+branch_expr = _{ when_expr ~ (when_expr)* }
+when_expr = { ^"when" ~ expr_top ~ ^"then" ~ expr_top }
 
 string_literal = @{ "\"" ~ (raw_string_character | escaped_character)* ~ "\"" }
 raw_string_character = @{ (!"\"" ~ !"\\" ~ ANY) }
