@@ -1,6 +1,12 @@
 expression_input = _{ SOI ~ expr_top ~ EOI }
 
-expr_top = _{ or_operand }
+expr_top = _{ main_expression ~ modifier_expression? }
+main_expression = _{ or_operand }
+modifier_expression = { where_clause }
+where_clause = { ^"[where" ~ (allow_field_filters | ignore_field_filters)? ~ filter_expr+ ~ "]" }
+filter_expr = { expr_top }
+allow_field_filters = { ^"allow" ~ field_reference ~ ("," ~ field_reference)* }
+ignore_field_filters = { ^"ignore" ~ ("ALL" | field_reference ~ ("," ~ field_reference)*) }
 
 or_operand = { and_operand ~ (or_op ~ and_operand)* }
 and_operand = { not_operand ~ (and_op ~ not_operand)* }
