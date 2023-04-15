@@ -294,32 +294,95 @@ fn test_boolean_literals() {
 }
 
 #[test]
-fn test_operator_precedence_parsing() {
-    let input = "2 * (3 + 4) / 7 > 1 and true or false and 3 * (5 - 1) < 12";
-    let parse_result = ExpressionParser::parse(Rule::expression_input, input);
-    assert!(parse_result.is_ok(), "Failed to parse input expression");
+fn test_case_expressions() {
+    let valid_expressions = vec![
+        r#"CASE
+         WHEN city = "Opelika" THEN "Op"
+         WHEN city = "Brownsboro" THEN "Br"
+         WHEN city = "Phoenix" THEN "Ph"
+         WHEN city = "Alameda" THEN "Al"
+         WHEN city = "Los Angeles" THEN "LA"
+         WHEN city = "Buena Park" THEN "BP"
+         WHEN city = "Sacramento" THEN "Sa"
+         WHEN city = "Alta Loma" THEN "AL"
+         WHEN city = "Ceres" THEN "Ce"
+         WHEN city = "Aurora" THEN "Au"
+         WHEN city = "Botsford" THEN "Bot"
+         WHEN city = "Brooksville" THEN "Broo"
+         WHEN city = "Balm" THEN "Ba"
+         WHEN city = "Hialeah" THEN "Hia"
+         WHEN city = "Austell" THEN "Au"
+         WHEN city = "Alpharetta" THEN "Alpha"
+         WHEN city = "Arlington Heights" THEN "AH"
+         WHEN city = "Antioch" THEN "Ant"
+         WHEN city = "Granger" THEN "Gra"
+         WHEN city = "Bussey" THEN "Bus"
+         WHEN city = "Lane" THEN "Lan"
+         WHEN city = "Leonardville" THEN "Leon"
+         WHEN city = "Aberdeen" THEN "Aber"
+         ELSE city
+         END"#,
+        r#"CASE
+         WHEN streamtype = 1 THEN upper("CDR")
+         WHEN streamtype = 2 THEN upper("STATS")
+         WHEN streamtype = 3 THEN upper("PDU")
+         WHEN streamtype = 4 THEN upper("CDR")
+         WHEN streamtype = 5 THEN upper("CDR")
+         WHEN streamtype = 6 THEN upper("CDR")
+         WHEN streamtype = 7 THEN upper("CDR")
+         WHEN streamtype = 8 THEN upper("PDU")
+         WHEN streamtype = 9 THEN upper("STATS")
+         WHEN streamtype = 10 THEN upper("LOG")
+         WHEN streamtype = 11 THEN upper("STATS")
+         WHEN streamtype = 12 THEN upper("PDU")
+         WHEN streamtype = 13 THEN upper("CDR")
+         WHEN streamtype = 14 THEN upper("CDR")
+         WHEN streamtype = 15 THEN upper("STATS")
+         ELSE upper("UNKNOWN")
+         END"#,
+        r#"CASE
+         WHEN sum(sales) > 100 THEN
+            CASE
+            WHEN avg(satisfaction) > 5 THEN "Awesome"
+            ELSE "Nice"
+            END
+         WHEN sum(sales) > 50 THEN "OK"
+         ELSE "Bad"
+         END"#,
+    ];
 
-    let parse_tree = parse_result.unwrap();
-/*
-    // You can implement your custom validation logic here.
-    // For example, you can count the number of specific rule occurrences in the parse tree.
-    let mut comparison_count = 0;
-    let mut and_count = 0;
-    let mut or_count = 0;
-
-    for pair in parse_tree.clone().flatten() {
-        match pair.as_rule() {
-            Rule::comparison_operator => comparison_count += 1,
-            Rule::and_op => and_count += 1,
-            Rule::or_op => or_count += 1,
-            _ => (),
-        }
+    for expr in valid_expressions {
+        let result = ExpressionParser::parse(Rule::expression_input, expr);
+        assert!(
+            result.is_ok(),
+            "Expression '{}' should be a valid CASE expression, got error: {:?}",
+            expr, result.unwrap_err()
+        );
     }
-
-    assert_eq!(comparison_count, 2, "Incorrect number of comparison operators");
-    assert_eq!(and_count, 2, "Incorrect number of AND operators");
-    assert_eq!(or_count, 1, "Incorrect number of OR operators");
-*/
-    // Optionally, you can print the parse tree for visual inspection.
-    println!("{:#?}", parse_tree);
 }
+
+
+#[test]
+fn test_if_expressions() {
+    let valid_expressions = vec![
+        r#"if Salary > 3000 then "Alrite!" else "Dammit!""#,
+        r#"if Sales >= 10000 then "High"
+          else if Sales <= 2000 then "Low"
+          else "Medium""#,
+        r#"if Salary = true then "Alrite!" else "Dammit!""#,
+        r#"if true = Salary then "Alrite!" else "Dammit!""#,
+        r#"if (Salary > 3000) then "Alrite!" else "Dammit!""#,
+        r#"if Salary > 3000 then (if Salary > 4000 then ">4000" else "<4000") else "<3000""#,
+        r#"if(Salary > 3000, "Alrite!", "Dammit!")"#,
+    ];
+
+    for expr in valid_expressions {
+        let result = ExpressionParser::parse(Rule::expression_input, expr);
+        assert!(
+            result.is_ok(),
+            "Expression '{}' should be a valid IF expression, got error: {:?}",
+            expr, result.unwrap_err()
+        );
+    }
+}
+
