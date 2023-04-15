@@ -29,11 +29,7 @@ fn test_invalid_arithmetic_expressions() {
 
     for expr in expressions {
         let result = ExpressionParser::parse(Rule::expression_input, expr);
-        assert!(
-            result.is_err(),
-            "Expression '{}' should be invalid",
-            expr
-        );
+        assert!(result.is_err(), "Expression '{}' should be invalid", expr);
     }
 }
 
@@ -66,16 +62,17 @@ fn test_whitespace_handling() {
 
     for expr in expressions {
         let result = ExpressionParser::parse(Rule::expression_input, expr);
-        assert!(result.is_ok(), "Expression '{}' should handle whitespace", expr);
+        assert!(
+            result.is_ok(),
+            "Expression '{}' should handle whitespace",
+            expr
+        );
     }
 }
 
 #[test]
 fn test_invalid_whitespace_handling() {
-    let expressions = vec![
-        "field1 . field2 + 42",
-        "field1. field2",
-    ];
+    let expressions = vec!["field1 . field2 + 42", "field1. field2"];
 
     for expr in expressions {
         let result = ExpressionParser::parse(Rule::expression_input, expr);
@@ -100,7 +97,8 @@ fn test_latin_letters() {
         assert!(
             result.is_ok(),
             "Expression '{}' should allow Latin letters, got error: {:?}",
-            expr, result.unwrap_err()
+            expr,
+            result.unwrap_err()
         );
     }
 }
@@ -129,11 +127,7 @@ fn test_periods() {
 
     for expr in expressions {
         let result = ExpressionParser::parse(Rule::expression_input, expr);
-        assert!(
-            result.is_ok(),
-            "Expression '{}' should allow periods",
-            expr
-        );
+        assert!(result.is_ok(), "Expression '{}' should allow periods", expr);
     }
 }
 
@@ -158,11 +152,7 @@ fn test_underscores() {
 
 #[test]
 fn test_not_allowed_identifiers() {
-    let expressions = vec![
-        "1field + 2field",
-        "!field + &field",
-        "field@ + field$",
-    ];
+    let expressions = vec!["1field + 2field", "!field + &field", "field@ + field$"];
 
     for expr in expressions {
         let result = ExpressionParser::parse(Rule::expression_input, expr);
@@ -194,10 +184,7 @@ fn test_non_latin_characters() {
 
 #[test]
 fn test_special_symbols() {
-    let expressions = vec![
-        "field✨ + field🚀",
-        "field❤️ + field😊",
-    ];
+    let expressions = vec!["field✨ + field🚀", "field❤️ + field😊"];
 
     for expr in expressions {
         let result = ExpressionParser::parse(Rule::expression_input, expr);
@@ -288,7 +275,8 @@ fn test_boolean_literals() {
         assert!(
             result.is_ok(),
             "Expression '{}' should be a valid boolean expression, got error: {:?}",
-            expr, result.unwrap_err()
+            expr,
+            result.unwrap_err()
         );
     }
 }
@@ -356,11 +344,11 @@ fn test_case_expressions() {
         assert!(
             result.is_ok(),
             "Expression '{}' should be a valid CASE expression, got error: {:?}",
-            expr, result.unwrap_err()
+            expr,
+            result.unwrap_err()
         );
     }
 }
-
 
 #[test]
 fn test_if_expressions() {
@@ -381,8 +369,29 @@ fn test_if_expressions() {
         assert!(
             result.is_ok(),
             "Expression '{}' should be a valid IF expression, got error: {:?}",
-            expr, result.unwrap_err()
+            expr,
+            result.unwrap_err()
         );
     }
 }
 
+#[test]
+fn test_expressions_with_where() {
+    let valid_expressions = vec![
+        "sum(sales) [where city = \"Opelika\"]",
+        "sum(sales) - sum(planned_sales) [where city = \"Opelika\"]",
+        "(sum(sales) - sum(planned_sales)) [where city = \"Opelika\"]",
+        "sum(sales) [where city = \"Opelika\"]",
+        "sum(sales) [where city = \"Opelika\"]",
+    ];
+
+    for expr in valid_expressions {
+        let result = dbg!(ExpressionParser::parse(Rule::expression_input, expr));
+        assert!(
+            result.is_ok(),
+            "Expression '{}' should be a valid expression, got error: {:?}",
+            expr,
+            result.unwrap_err()
+        );
+    }
+}
