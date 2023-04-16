@@ -395,3 +395,42 @@ fn test_expressions_with_where() {
         );
     }
 }
+
+#[test]
+fn test_expressions_with_partition() {
+    let valid_expressions = vec![
+        "sum(sales) [where city = \"Opelika\"]",
+        "sum(sales) - sum(planned_sales) [where city = \"Opelika\"]",
+        "(sum(sales) - sum(planned_sales)) [where city = \"Opelika\"]",
+        "(sum(sales) - sum(planned_sales)) [where allow ]",
+    ];
+
+    for expr in valid_expressions {
+        let result = dbg!(ExpressionParser::parse(Rule::expression_input, expr));
+        assert!(
+            result.is_ok(),
+            "Expression '{}' should be a valid expression, got error: {:?}",
+            expr,
+            result.unwrap_err()
+        );
+    }
+}
+
+#[test]
+fn test_expressions_with_partition_and_where() {
+    let valid_expressions = vec![
+        "sum(sales) [where city = \"Opelika\"]",
+        "sum(sales) - sum(planned_sales) [where city = \"Opelika\"]",
+        "(sum(sales) - sum(planned_sales)) [where city = \"Opelika\"]",
+    ];
+
+    for expr in valid_expressions {
+        let result = dbg!(ExpressionParser::parse(Rule::expression_input, expr));
+        assert!(
+            result.is_ok(),
+            "Expression '{}' should be a valid expression, got error: {:?}",
+            expr,
+            result.unwrap_err()
+        );
+    }
+}

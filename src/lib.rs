@@ -39,6 +39,7 @@ fn convert_to_ast(expr: Pair<Rule>) -> Expression {
                 Expression::Function {
                     function_name: rule.as_str().to_string(),
                     params: operands,
+                    where_modifier: None,
                 }
             } else {
                 //otherwise, just return the first operand
@@ -56,12 +57,14 @@ fn convert_to_ast(expr: Pair<Rule>) -> Expression {
                 let mut left = Expression::Function {
                     function_name: op_rule.as_str().to_string(),
                     params: vec![convert_to_ast(first_operand), convert_to_ast(child_pairs.next().unwrap())],
+                    where_modifier: None,
                 };
                 //append all other operands to the tree
                 while let Some(op_rule) = child_pairs.next() {
                     left = Expression::Function {
                         function_name: op_rule.as_str().to_string(),
                         params: vec![left, convert_to_ast(child_pairs.next().unwrap())],
+                        where_modifier: None,
                     };
                 }
 
@@ -78,6 +81,7 @@ fn convert_to_ast(expr: Pair<Rule>) -> Expression {
                 Expression::Function {
                     function_name: first_node.as_str().to_string(),
                     params: vec![convert_to_ast(second_node)],
+                    where_modifier: None,
                 }
             } else {
                 convert_to_ast(first_node)
@@ -90,26 +94,31 @@ fn convert_to_ast(expr: Pair<Rule>) -> Expression {
             Expression::Function {
                 function_name: function.as_str().to_string(),
                 params: params.into_inner().map(convert_to_ast).collect(),
+                where_modifier: None,
             }
         }
         Rule::string_literal => {
             Expression::Literal {
                 value: LiteralValue::StringValue { value: expr.as_str().to_string() },
+                where_modifier: None,
             }
         }
         Rule::integer => {
             Expression::Literal {
                 value: LiteralValue::NumberValue { value: expr.as_str().parse::<f64>().unwrap() },
+                where_modifier: None,
             }
         }
         Rule::float => {
             Expression::Literal {
                 value: LiteralValue::NumberValue { value: expr.as_str().parse::<f64>().unwrap() },
+                where_modifier: None,
             }
         }
         Rule::boolean_literal => {
             Expression::Literal {
                 value: LiteralValue::BooleanValue { value: expr.as_str().parse::<bool>().unwrap() },
+                where_modifier: None,
             }
         }
         Rule::field_reference => {
@@ -117,6 +126,7 @@ fn convert_to_ast(expr: Pair<Rule>) -> Expression {
             let field = child_pairs.next().unwrap();
             Expression::FieldReference {
                 field_id: field.as_str().to_string(),
+                where_modifier: None,
             }
         }
         _ => unreachable!()
@@ -126,7 +136,7 @@ fn convert_to_ast(expr: Pair<Rule>) -> Expression {
 //eval simple arithmetic expressions
 fn eval_ast(ast: Expression) -> f64 {
     match ast {
-        Expression::Literal { value } => {
+        Expression::Literal { value, .. } => {
             match value {
                 LiteralValue::NumberValue { value } => value,
                 _ => unimplemented!()
@@ -135,7 +145,7 @@ fn eval_ast(ast: Expression) -> f64 {
         Expression::FieldReference { .. } => {
             unimplemented!()
         }
-        Expression::Function { function_name, params } => {
+        Expression::Function { function_name, params, .. } => {
             let params = params.into_iter().map(eval_ast).collect::<Vec<f64>>();
             match function_name.as_str() {
                 "+" => params[0] + params[1],
@@ -222,4 +232,7 @@ mod tests {
 }
 
 #[cfg(test)]
-mod expression_tests;
+mod expression_parsing_tests;
+
+#[cfg(test)]
+mod expression_ast_tests;
