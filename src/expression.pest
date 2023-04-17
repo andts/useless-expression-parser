@@ -1,76 +1,77 @@
 expression_input = _{ SOI ~ expr_top ~ EOI }
 
-expr_top = _{ main_expression ~ modifier_expression? }
-main_expression = _{ or_operand }
-modifier_expression = { where_clause }
+expr_top            = _{ main_expression ~ modifier_expression? }
+main_expression     = _{ or_operand }
+modifier_expression =  { where_clause }
 
-where_clause = { ^"[where" ~ (((allow_field_filters | ignore_field_filters) ~ (^"and" ~ filter_expr+)?) | filter_expr+) ~ "]" }
-filter_expr = { expr_top }
-allow_field_filters = { ^"allow" ~ (^"filters" ~ ^"on")? ~ field_reference ~ ("," ~ field_reference)* }
+where_clause         = { ^"[where" ~ (((allow_field_filters | ignore_field_filters) ~ (^"and" ~ filter_expr+)?) | filter_expr+) ~ "]" }
+filter_expr          = { expr_top }
+allow_field_filters  = { ^"allow" ~ (^"filters" ~ ^"on")? ~ field_reference ~ ("," ~ field_reference)* }
 ignore_field_filters = { ^"ignore" ~ (^"all filters" | ((^"filters" ~ ^"on")? ~ field_reference ~ ("," ~ field_reference)*)) }
 
-or_operand = { and_operand ~ (or_op ~ and_operand)* }
-and_operand = { not_operand ~ (and_op ~ not_operand)* }
-not_operand = { not_op? ~ comp_operand }
+or_operand  = { and_operand ~ (or_op ~ and_operand)* ~ modifier_expression? }
+and_operand = { not_operand ~ (and_op ~ not_operand)* ~ modifier_expression? }
+not_operand = { not_op? ~ comp_operand ~ modifier_expression? }
 // operators of the same level can be parsed together as they are left-associative
-comp_operand = { add_operand ~ (comparison_operator ~ add_operand)* }
-add_operand = { mul_operand ~ ((plus | minus) ~ mul_operand)* }
-mul_operand = { primary_expression ~ ((mul | div) ~ primary_expression)* }
+comp_operand = { add_operand ~ (comparison_operator ~ add_operand)* ~ modifier_expression? }
+add_operand  = { mul_operand ~ ((plus | minus) ~ mul_operand)* ~ modifier_expression? }
+mul_operand  = { primary_expression ~ ((mul | div) ~ primary_expression)* ~ modifier_expression? }
 
-primary_expression = _{ 
-    if_expr | case_expr | 
-    literal | function_call | field_reference |
-    "(" ~ expr_top ~ ")" 
+// all expressions accept a modifier clause after them
+primary_expression = _{
+    (if_expr | case_expr | literal | function_expr | field_reference | "(" ~ expr_top ~ ")") ~ modifier_expression?
 }
 
 literal = _{ number | boolean_literal | string_literal }
 
-function_call = { identifier ~ "(" ~ function_arguments ~ ")" ~ window_clause?}
-function_arguments = { function_argument ~ ("," ~ function_argument)* }
-function_argument = _{ expr_top }
+// function calls can have a modifier clause after them
+// and a window clause after that, or just a window clause
+function_expr      = _{ function_call ~ ((modifier_expression ~ window_clause) | window_clause)? }
+function_call      =  { identifier ~ "(" ~ function_arguments ~ ")" }
+function_arguments =  { function_argument ~ ("," ~ function_argument)* }
+function_argument  = _{ expr_top }
 
-window_clause = { ^"[over" ~ window_definition ~ "]" }
-window_definition = { ^"partition" ~ ^"by" ~ (all_groups | (partition_def ~ ("," ~ partition_def))+) }
-all_groups = { (^"all" ~ ^"groups") }
-partition_def = { group_reference | field_reference  }
-group_reference = @{ ^"group" ~ "(" ~ group_index ~ ")"}
-group_index = { ASCII_DIGIT+ }
+window_clause   =  { "[" ~ ^"group" ~ ^"by" ~ (all_groups | (partition_def ~ ("," ~ partition_def))+) ~ "]" }
+all_groups      =  { ^"all" ~ ^"groups" }
+partition_def   =  { group_reference | field_reference }
+group_reference = @{ ^"group" ~ "(" ~ group_index ~ ")" }
+group_index     =  { ASCII_DIGIT+ }
 
-if_expr = { if_branch ~ else_branch }
-if_branch = { ^"if" ~ expr_top ~ ^"then" ~ expr_top }
+if_expr     = { if_branch ~ else_branch }
+if_branch   = { ^"if" ~ expr_top ~ ^"then" ~ expr_top }
 else_branch = { ^"else" ~ expr_top }
 
-case_expr = { ^"case" ~ branch_expr ~ else_branch? ~ ^"end" }
+case_expr   =  { ^"case" ~ branch_expr ~ else_branch? ~ ^"end" }
 branch_expr = _{ when_expr ~ (when_expr)* }
-when_expr = { ^"when" ~ expr_top ~ ^"then" ~ expr_top }
+when_expr   =  { ^"when" ~ expr_top ~ ^"then" ~ expr_top }
 
-string_literal = @{ "\"" ~ (raw_string_character | escaped_character)* ~ "\"" }
+string_literal       = @{ "\"" ~ (raw_string_character | escaped_character)* ~ "\"" }
 raw_string_character = @{ (!"\"" ~ !"\\" ~ ANY) }
-escaped_character = @{ "\\" ~ ( "\"" | "\\" ) }
+escaped_character    = @{ "\\" ~ ("\"" | "\\") }
 
-identifier = @{ (LETTER | "_") ~ (LETTER | "_" | ASCII_DIGIT)* }
+identifier      = @{ (LETTER | "_") ~ (LETTER | "_" | ASCII_DIGIT)* }
 field_reference = @{ (identifier ~ "." ~ identifier) | identifier }
 
-number = _{ float | integer }
-integer = @{ "-"? ~ ASCII_DIGIT+ ~ (exp ~ ("+" | "-")? ~ ASCII_DIGIT+)?}
-float = @{ "-"? ~ ASCII_DIGIT* ~ "." ~ ASCII_DIGIT+ ~ (exp ~ ("+" | "-")? ~ ASCII_DIGIT+)?}
-exp = @{ "e" | "E" }
+number  = _{ float | integer }
+integer = @{ "-"? ~ ASCII_DIGIT+ ~ (exp ~ ("+" | "-")? ~ ASCII_DIGIT+)? }
+float   = @{ "-"? ~ ASCII_DIGIT* ~ "." ~ ASCII_DIGIT+ ~ (exp ~ ("+" | "-")? ~ ASCII_DIGIT+)? }
+exp     = @{ "e" | "E" }
 
 comparison_operator = _{ gte_op | lte_op | eq_op | neq_op | lt_op | gt_op }
-gte_op = @{ ">=" }
-gt_op = @{ ">" }
-lte_op = @{ "<=" }
-lt_op = @{ "<" }
-neq_op = @{ "!=" }
-eq_op = @{ "=" }
-and_op = @{ ^"and" }
-or_op = @{ ^"or" }
-not_op = @{ ^"not" }
-boolean_literal = @{ ^"true" | ^"false" }
+gte_op              = @{ ">=" }
+gt_op               = @{ ">" }
+lte_op              = @{ "<=" }
+lt_op               = @{ "<" }
+neq_op              = @{ "!=" }
+eq_op               = @{ "=" }
+and_op              = @{ ^"and" }
+or_op               = @{ ^"or" }
+not_op              = @{ ^"not" }
+boolean_literal     = @{ ^"true" | ^"false" }
 
-plus = @{ "+" }
+plus  = @{ "+" }
 minus = @{ "-" }
-mul = @{ "*" }
-div = @{ "/" }
+mul   = @{ "*" }
+div   = @{ "/" }
 
 WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
