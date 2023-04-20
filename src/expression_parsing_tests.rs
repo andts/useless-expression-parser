@@ -405,10 +405,10 @@ fn test_expressions_with_where() {
 #[test]
 fn test_expressions_with_partition() {
     let valid_expressions = vec![
-        "sum(sales) [where city = \"Opelika\"]",
-        "sum(sales) - sum(planned_sales) [where city = \"Opelika\"]",
-        "(sum(sales) - sum(planned_sales)) [where city = \"Opelika\"]",
-        "(sum(sales) - sum(planned_sales)) [where allow ]",
+        "sum(sales) [group by city]",
+        "sum(sales) [group by state, city]",
+        "sum(sales) [group by all groups]",
+        "sum(sales) [group by group(1), group(4)]",
     ];
 
     for expr in valid_expressions {
@@ -425,9 +425,8 @@ fn test_expressions_with_partition() {
 #[test]
 fn test_expressions_with_partition_and_where() {
     let valid_expressions = vec![
-        "sum(sales) [where city = \"Opelika\"]",
-        "sum(sales) - sum(planned_sales) [where city = \"Opelika\"]",
-        "(sum(sales) - sum(planned_sales)) [where city = \"Opelika\"]",
+        "sum(sales) [where city = \"Opelika\"] [group by product]",
+        "sum(sales) [group by product] [where city = \"Opelika\"] ",
     ];
 
     for expr in valid_expressions {

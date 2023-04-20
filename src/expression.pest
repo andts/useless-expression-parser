@@ -31,10 +31,10 @@ function_call      =  { identifier ~ "(" ~ function_arguments ~ ")" }
 function_arguments =  { function_argument ~ ("," ~ function_argument)* }
 function_argument  = _{ expr_top }
 
-window_clause   =  { "[" ~ ^"group" ~ ^"by" ~ (all_groups | (partition_def ~ ("," ~ partition_def))+) ~ "]" }
+window_clause   =  { "[" ~ ^"group" ~ ^"by" ~ (all_groups | (group_def ~ ("," ~ group_def)*)) ~ "]" }
 all_groups      =  { ^"all" ~ ^"groups" }
-partition_def   =  { group_reference | field_reference }
-group_reference = @{ ^"group" ~ "(" ~ group_index ~ ")" }
+group_def   =  _{ group_reference | field_reference }
+group_reference = _{ ^"group(" ~ group_index ~ ")" }
 group_index     =  { ASCII_DIGIT+ }
 
 if_expr     = { if_branch ~ else_branch }
