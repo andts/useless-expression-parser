@@ -30,7 +30,15 @@ fn convert_to_ast(expr: Pair<Rule>) -> Expression {
             if let Some(rule) = operator {
                 //collect all child nodes that are not or_operand or and_operand
                 let mut operands: Vec<Expression> = vec![convert_to_ast(first_operand)];
+                let mut where_modifier: Option<WhereModifier> = None;
+                let mut group_by_modifier: Option<GroupByModifier> = None;
                 while let Some(child) = child_pairs.next() {
+                    if child.as_rule() == Rule::where_clause {
+                        where_modifier = convert_to_where_modifier(child);
+                    }
+                    if child.as_rule() == Rule::window_clause {
+                        let group_by_modifier = convert_to_group_by_modifier(child);
+                    }
                     if child.as_rule() != Rule::or_operand && child.as_rule() != Rule::and_operand {
                         operands.push(convert_to_ast(child));
                     }
@@ -39,7 +47,8 @@ fn convert_to_ast(expr: Pair<Rule>) -> Expression {
                 Expression::Function {
                     function_name: rule.as_str().to_string(),
                     params: operands,
-                    where_modifier: None,
+                    where_modifier: where_modifier,
+                    group_by_modifier: None,
                 }
             } else {
                 //otherwise, just return the first operand
@@ -56,8 +65,12 @@ fn convert_to_ast(expr: Pair<Rule>) -> Expression {
                 //build first function node
                 let mut left = Expression::Function {
                     function_name: op_rule.as_str().to_string(),
-                    params: vec![convert_to_ast(first_operand), convert_to_ast(child_pairs.next().unwrap())],
+                    params: vec![
+                        convert_to_ast(first_operand),
+                        convert_to_ast(child_pairs.next().unwrap()),
+                    ],
                     where_modifier: None,
+                    group_by_modifier: None,
                 };
                 //append all other operands to the tree
                 while let Some(op_rule) = child_pairs.next() {
@@ -65,6 +78,7 @@ fn convert_to_ast(expr: Pair<Rule>) -> Expression {
                         function_name: op_rule.as_str().to_string(),
                         params: vec![left, convert_to_ast(child_pairs.next().unwrap())],
                         where_modifier: None,
+                        group_by_modifier: None,
                     };
                 }
 
@@ -82,6 +96,7 @@ fn convert_to_ast(expr: Pair<Rule>) -> Expression {
                     function_name: first_node.as_str().to_string(),
                     params: vec![convert_to_ast(second_node)],
                     where_modifier: None,
+                    group_by_modifier: None,
                 }
             } else {
                 convert_to_ast(first_node)
@@ -95,32 +110,33 @@ fn convert_to_ast(expr: Pair<Rule>) -> Expression {
                 function_name: function.as_str().to_string(),
                 params: params.into_inner().map(convert_to_ast).collect(),
                 where_modifier: None,
+                group_by_modifier: None,
             }
         }
-        Rule::string_literal => {
-            Expression::Literal {
-                value: LiteralValue::StringValue { value: expr.as_str().to_string() },
-                where_modifier: None,
-            }
-        }
-        Rule::integer => {
-            Expression::Literal {
-                value: LiteralValue::NumberValue { value: expr.as_str().parse::<f64>().unwrap() },
-                where_modifier: None,
-            }
-        }
-        Rule::float => {
-            Expression::Literal {
-                value: LiteralValue::NumberValue { value: expr.as_str().parse::<f64>().unwrap() },
-                where_modifier: None,
-            }
-        }
-        Rule::boolean_literal => {
-            Expression::Literal {
-                value: LiteralValue::BooleanValue { value: expr.as_str().parse::<bool>().unwrap() },
-                where_modifier: None,
-            }
-        }
+        Rule::string_literal => Expression::Literal {
+            value: LiteralValue::StringValue {
+                value: expr.as_str().to_string(),
+            },
+            where_modifier: None,
+        },
+        Rule::integer => Expression::Literal {
+            value: LiteralValue::NumberValue {
+                value: expr.as_str().parse::<f64>().unwrap(),
+            },
+            where_modifier: None,
+        },
+        Rule::float => Expression::Literal {
+            value: LiteralValue::NumberValue {
+                value: expr.as_str().parse::<f64>().unwrap(),
+            },
+            where_modifier: None,
+        },
+        Rule::boolean_literal => Expression::Literal {
+            value: LiteralValue::BooleanValue {
+                value: expr.as_str().parse::<bool>().unwrap(),
+            },
+            where_modifier: None,
+        },
         Rule::field_reference => {
             let mut child_pairs = expr.into_inner();
             let field = child_pairs.next().unwrap();
@@ -129,30 +145,96 @@ fn convert_to_ast(expr: Pair<Rule>) -> Expression {
                 where_modifier: None,
             }
         }
-        _ => unreachable!()
+        _ => unreachable!(),
+    }
+}
+
+fn convert_to_group_by_modifier(child: Pair<Rule>) -> GroupByModifier {
+    match child.as_rule() {
+        Rule::window_clause => {
+            let mut child_pairs = child.into_inner();
+            let first_node = child_pairs.next().unwrap();
+            if let Rule::window_op = first_node.as_rule() {
+                let second_node = child_pairs.next().unwrap();
+                GroupByModifier::Window {
+                    expression: convert_to_ast(second_node),
+                }
+            } else {
+                unreachable!()
+            }
+        }
+        _ => unreachable!(),
+    }
+}
+
+fn convert_to_where_modifier(where_clause_node: Pair<Rule>) -> Option<WhereModifier> {
+    if let Rule::where_clause = where_clause_node.as_rule() {
+        let mut child_pairs = where_clause_node.into_inner();
+        let first_node = child_pairs.next().unwrap();
+        //first node can be an allowed or ignored filters list, or a filter expression
+        let mut filter_context: Option<FilterContext> = None;
+        let mut additional_filters: Vec<Expression> = vec![];
+        match first_node.as_rule() {
+            Rule::allow_field_filters => {
+                filter_context = Some(FilterContext::AllowedFilters {
+                    allowed_filters: first_node
+                        .into_inner()
+                        .map(|node| convert_to_ast(node))
+                        .collect(),
+                });
+            }
+            Rule::ignore_field_filters => {
+                let children = first_node.into_inner();
+                let first_child = children.next().unwrap();
+                if let Rule::ignore_all_filters = first_child.as_rule() {
+                    filter_context = Some(FilterContext::AllFiltersIgnored());
+                } else {
+                    let mut ignored_filters = vec![convert_to_ast(first_child)];
+                    children.for_each(|f| ignored_filters.push(convert_to_ast(f)));
+                    filter_context = Some(FilterContext::IgnoredFilters { ignored_filters });
+                }
+            }
+            Rule::filter_expr => {
+                additional_filters.push(convert_to_ast(first_node));
+            }
+            _ => unreachable!(),
+        }
+
+        while let Some(next_node) = child_pairs.next() {
+            additional_filters.push(convert_to_ast(next_node));
+        }
+
+        Some(WhereModifier {
+            filter_context,
+            additional_filters,
+        })
+    } else {
+        None
     }
 }
 
 //eval simple arithmetic expressions
 fn eval_ast(ast: Expression) -> f64 {
     match ast {
-        Expression::Literal { value, .. } => {
-            match value {
-                LiteralValue::NumberValue { value } => value,
-                _ => unimplemented!()
-            }
-        }
+        Expression::Literal { value, .. } => match value {
+            LiteralValue::NumberValue { value } => value,
+            _ => unimplemented!(),
+        },
         Expression::FieldReference { .. } => {
             unimplemented!()
         }
-        Expression::Function { function_name, params, .. } => {
+        Expression::Function {
+            function_name,
+            params,
+            ..
+        } => {
             let params = params.into_iter().map(eval_ast).collect::<Vec<f64>>();
             match function_name.as_str() {
                 "+" => params[0] + params[1],
                 "-" => params[0] - params[1],
                 "*" => params[0] * params[1],
                 "/" => params[0] / params[1],
-                _ => unimplemented!()
+                _ => unimplemented!(),
             }
         }
     }
@@ -220,13 +302,22 @@ mod tests {
             ("1.0 + 2.0 * 3.0 / 4.0 - 5.0 + 6.0 * 7.0", 39.5),
             ("3.0 * 4.0 - 5.0 * 6.0 / 2.0 + 7.0 * 2.0", 11.0),
             ("4.0 * (3.0 + 2.0) / 2.0 - 6.0 + 8.0 * 1.5", 16.0),
-            ("2.0 / 4.0 + 6.0 * 8.0 / 10.0 * 3.0 - 5.0", 9.899999999999999),
+            (
+                "2.0 / 4.0 + 6.0 * 8.0 / 10.0 * 3.0 - 5.0",
+                9.899999999999999,
+            ),
             ("1.5 + 2.0 * (3.5 - 4.0 / 2.0) + 5.0 * 6.0", 34.5),
         ];
 
         for (input, expected_output) in test_cases {
             let result = eval_expression(input).unwrap();
-            assert!((result - expected_output).abs() < f64::EPSILON, "Expression: {}, Result: {}, Expected: {}", input, result, expected_output);
+            assert!(
+                (result - expected_output).abs() < f64::EPSILON,
+                "Expression: {}, Result: {}, Expected: {}",
+                input,
+                result,
+                expected_output
+            );
         }
     }
 }

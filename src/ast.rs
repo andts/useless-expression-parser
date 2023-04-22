@@ -12,13 +12,14 @@ pub enum Expression {
         function_name: String,
         params: Vec<Expression>,
         where_modifier: Option<WhereModifier>,
+        group_by_modifier: Option<WhereModifier>,
     },
 }
 
 #[derive(Debug)]
 pub struct WhereModifier {
-    filter_context: FilterContext,
-    filters: Vec<Expression>,
+    filter_context: Option<FilterContext>,
+    additional_filters: Vec<Expression>,
 }
 
 #[derive(Debug)]
@@ -26,9 +27,32 @@ pub enum FilterContext {
     AllowedFilters {
         allowed_filters: Vec<Expression>,
     },
+    AllFiltersIgnored(),
     IgnoredFilters {
-        all: bool,
         ignored_filters: Vec<Expression>,
+    },
+}
+
+#[derive(Debug)]
+pub struct GroupByModifier {
+    group_context: GroupByContext,
+}
+
+#[derive(Debug)]
+pub enum GroupByContext {
+    AllGroups(),
+    IncludedGroups {
+        groups: Vec<GroupReference>,
+    },
+}
+
+#[derive(Debug)]
+pub enum GroupReference {
+    QueryGroup {
+        index: usize,
+    },
+    FieldGroup {
+        field: Expression,
     },
 }
 

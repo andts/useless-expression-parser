@@ -1,32 +1,32 @@
 expression_input = _{ SOI ~ expr_top ~ EOI }
 
-expr_top            = _{ main_expression ~ modifier_expression? }
+expr_top            = _{ main_expression ~ where_clause? }
 main_expression     = _{ or_operand }
-modifier_expression =  { where_clause }
 
 where_clause         = { ^"[where" ~ (((allow_field_filters | ignore_field_filters) ~ (^"and" ~ filter_expr+)?) | filter_expr+) ~ "]" }
 filter_expr          = { expr_top }
 allow_field_filters  = { ^"allow" ~ (^"filters" ~ ^"on")? ~ field_reference ~ ("," ~ field_reference)* }
-ignore_field_filters = { ^"ignore" ~ (^"all filters" | ((^"filters" ~ ^"on")? ~ field_reference ~ ("," ~ field_reference)*)) }
+ignore_field_filters = { ^"ignore" ~ (ignore_all_filters | ((^"filters" ~ ^"on")? ~ field_reference ~ ("," ~ field_reference)*)) }
+ignore_all_filters  = { ^"all" ~ ^"filters" }
 
-or_operand  = { and_operand ~ (or_op ~ and_operand)* ~ modifier_expression? }
-and_operand = { not_operand ~ (and_op ~ not_operand)* ~ modifier_expression? }
-not_operand = { not_op? ~ comp_operand ~ modifier_expression? }
+or_operand  = { and_operand ~ (or_op ~ and_operand)* ~ where_clause? }
+and_operand = { not_operand ~ (and_op ~ not_operand)* ~ where_clause? }
+not_operand = { not_op? ~ comp_operand ~ where_clause? }
 // operators of the same level can be parsed together as they are left-associative
-comp_operand = { add_operand ~ (comparison_operator ~ add_operand)* ~ modifier_expression? }
-add_operand  = { mul_operand ~ ((plus | minus) ~ mul_operand)* ~ modifier_expression? }
-mul_operand  = { primary_expression ~ ((mul | div) ~ primary_expression)* ~ modifier_expression? }
+comp_operand = { add_operand ~ (comparison_operator ~ add_operand)* ~ where_clause? }
+add_operand  = { mul_operand ~ ((plus | minus) ~ mul_operand)* ~ where_clause? }
+mul_operand  = { primary_expression ~ ((mul | div) ~ primary_expression)* ~ where_clause? }
 
 // all expressions accept a modifier clause after them
 primary_expression = _{
-    (if_expr | case_expr | literal | function_expr | field_reference | "(" ~ expr_top ~ ")") ~ modifier_expression?
+    (if_expr | case_expr | literal | function_expr | field_reference | "(" ~ expr_top ~ ")") ~ where_clause?
 }
 
 literal = _{ number | boolean_literal | string_literal }
 
 // function calls can have a modifier clause after them
 // and a window clause after that, or just a window clause
-function_expr      = _{ function_call ~ ((modifier_expression ~ window_clause) | window_clause)? }
+function_expr      = _{ function_call ~ ((where_clause ~ window_clause) | window_clause)? }
 function_call      =  { identifier ~ "(" ~ function_arguments ~ ")" }
 function_arguments =  { function_argument ~ ("," ~ function_argument)* }
 function_argument  = _{ expr_top }
