@@ -1,7 +1,7 @@
 expression_input = _{ SOI ~ expr_top ~ EOI }
 
-expr_top            = _{ main_expression ~ where_clause? }
-main_expression     = _{ or_operand }
+expr_top            = _{ expression_body ~ where_clause? }
+expression_body     = _{ or_operand }
 
 where_clause         = { ^"[where" ~ (((allow_field_filters | ignore_field_filters) ~ (^"and" ~ filter_expr+)?) | filter_expr+) ~ "]" }
 filter_expr          = { expr_top }
@@ -38,8 +38,8 @@ group_reference = _{ ^"group(" ~ group_index ~ ")" }
 group_index     =  { ASCII_DIGIT+ }
 
 if_expr     = { if_branch ~ else_branch }
-if_branch   = { ^"if" ~ expr_top ~ ^"then" ~ expr_top }
-else_branch = { ^"else" ~ expr_top }
+if_branch   = _{ ^"if" ~ expr_top ~ ^"then" ~ expr_top }
+else_branch = _{ ^"else" ~ expr_top }
 
 case_expr   =  { ^"case" ~ branch_expr ~ else_branch? ~ ^"end" }
 branch_expr = _{ when_expr ~ (when_expr)* }

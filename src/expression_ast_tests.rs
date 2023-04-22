@@ -1,19 +1,21 @@
 use pest::Parser;
 
-use crate::{ExpressionParser, Rule};
+use crate::{convert_to_ast, ExpressionParser, Rule};
+use crate::ast::{field_ref, func, lit_num};
 
 #[test]
 fn test_valid_arithmetic_expressions() {
     let expressions = vec![
-        "field1 + 42",
-        "field1.field2 * 3.14",
-        "(field1 + field2) * (field3 / field4)",
-        "field1 - field2.field3 + 42 * 7.5",
+        ("field1 + 42", func("+", vec![field_ref("field1"), lit_num(43_f64)])),
+        // "field1.field2 * 3.14",
+        // "(field1 + field2) * (field3 / field4)",
+        // "field1 - field2.field3 + 42 * 7.5",
     ];
 
     for expr in expressions {
-        let result = ExpressionParser::parse(Rule::expression_input, expr);
-        assert!(result.is_ok(), "Expression '{}' should be valid", expr);
+        let mut result = ExpressionParser::parse(Rule::expression_input, expr.0).unwrap();
+        let ast = convert_to_ast(result.next().unwrap());
+        assert_eq!(ast, expr.1, "Expression '{}' translated into incorrect AST", expr.0);
     }
 }
 

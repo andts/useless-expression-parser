@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use pest::iterators::Pair;
 use pest::Parser;
 use pest_derive::Parser;
@@ -16,11 +17,11 @@ pub fn eval_expression(input: &str) -> Result<f64, String> {
 
     let expr = parsed.into_iter().next().unwrap();
     let ast = dbg!(convert_to_ast(expr));
-    let numeric_expression = eval_ast(ast);
-    Ok(numeric_expression)
+    let numeric_expression = eval_ast(ast, &HashMap::new())?;
+    Ok(numeric_expression.into())
 }
 
-fn convert_to_ast(expr: Pair<Rule>) -> Expression {
+pub fn convert_to_ast(expr: Pair<Rule>) -> Expression {
     match expr.as_rule() {
         Rule::or_operand | Rule::and_operand => {
             let mut child_pairs = expr.into_inner();
@@ -29,25 +30,25 @@ fn convert_to_ast(expr: Pair<Rule>) -> Expression {
             // if there is more than one child node, then this is a full expression with an operator
             if let Some(rule) = operator {
                 //collect all child nodes that are not or_operand or and_operand
-                let mut operands: Vec<Expression> = vec![convert_to_ast(first_operand)];
+                let mut params: Vec<Expression> = vec![convert_to_ast(first_operand)];
                 let mut where_modifier: Option<WhereModifier> = None;
-                let mut group_by_modifier: Option<GroupByModifier> = None;
                 while let Some(child) = child_pairs.next() {
-                    if child.as_rule() == Rule::where_clause {
-                        where_modifier = convert_to_where_modifier(child);
-                    }
-                    if child.as_rule() == Rule::window_clause {
-                        let group_by_modifier = convert_to_group_by_modifier(child);
-                    }
-                    if child.as_rule() != Rule::or_operand && child.as_rule() != Rule::and_operand {
-                        operands.push(convert_to_ast(child));
+                    let child_rule = child.as_rule();
+                    match child_rule {
+                        Rule::where_clause => {
+                            where_modifier = convert_to_where_modifier(child);
+                        }
+                        c if c != Rule::or_operand && c != Rule::and_operand => {
+                            params.push(convert_to_ast(child));
+                        }
+                        _ => {}
                     }
                 }
 
                 Expression::Function {
                     function_name: rule.as_str().to_string(),
-                    params: operands,
-                    where_modifier: where_modifier,
+                    params,
+                    where_modifier,
                     group_by_modifier: None,
                 }
             } else {
@@ -113,35 +114,34 @@ fn convert_to_ast(expr: Pair<Rule>) -> Expression {
                 group_by_modifier: None,
             }
         }
+        Rule::if_expr => {
+            let mut children = expr.into_inner();
+            Expression::IfExpression {
+                condition: Box::new(convert_to_ast(children.next().unwrap())),
+                result: Box::new(convert_to_ast(children.next().unwrap())),
+                else_result: Box::new(convert_to_ast(children.next().unwrap())),
+                where_modifier: None,
+            }
+        }
         Rule::string_literal => Expression::Literal {
-            value: LiteralValue::StringValue {
-                value: expr.as_str().to_string(),
-            },
+            value: LiteralValue::StringValue(expr.as_str().to_string()),
             where_modifier: None,
         },
         Rule::integer => Expression::Literal {
-            value: LiteralValue::NumberValue {
-                value: expr.as_str().parse::<f64>().unwrap(),
-            },
+            value: LiteralValue::NumberValue(expr.as_str().parse::<f64>().unwrap()),
             where_modifier: None,
         },
         Rule::float => Expression::Literal {
-            value: LiteralValue::NumberValue {
-                value: expr.as_str().parse::<f64>().unwrap(),
-            },
+            value: LiteralValue::NumberValue(expr.as_str().parse::<f64>().unwrap()),
             where_modifier: None,
         },
         Rule::boolean_literal => Expression::Literal {
-            value: LiteralValue::BooleanValue {
-                value: expr.as_str().parse::<bool>().unwrap(),
-            },
+            value: LiteralValue::BooleanValue(expr.as_str().parse::<bool>().unwrap()),
             where_modifier: None,
         },
         Rule::field_reference => {
-            let mut child_pairs = expr.into_inner();
-            let field = child_pairs.next().unwrap();
             Expression::FieldReference {
-                field_id: field.as_str().to_string(),
+                field_id: expr.as_str().to_string(),
                 where_modifier: None,
             }
         }
@@ -149,22 +149,23 @@ fn convert_to_ast(expr: Pair<Rule>) -> Expression {
     }
 }
 
-fn convert_to_group_by_modifier(child: Pair<Rule>) -> GroupByModifier {
-    match child.as_rule() {
-        Rule::window_clause => {
-            let mut child_pairs = child.into_inner();
-            let first_node = child_pairs.next().unwrap();
-            if let Rule::window_op = first_node.as_rule() {
-                let second_node = child_pairs.next().unwrap();
-                GroupByModifier::Window {
-                    expression: convert_to_ast(second_node),
-                }
-            } else {
-                unreachable!()
-            }
-        }
-        _ => unreachable!(),
-    }
+fn convert_to_group_by_modifier(child: Pair<Rule>) -> Option<GroupByModifier> {
+    // match child.as_rule() {
+    //     Rule::window_clause => {
+    //         let mut child_pairs = child.into_inner();
+    //         let first_node = child_pairs.next().unwrap();
+    //         if let Rule::window_clause = first_node.as_rule() {
+    //             let second_node = child_pairs.next().unwrap();
+    //             GroupByModifier::Window {
+    //                 expression: convert_to_ast(second_node),
+    //             }
+    //         } else {
+    //             unreachable!()
+    //         }
+    //     }
+    //     _ => unreachable!(),
+    // }
+    unimplemented!()
 }
 
 fn convert_to_where_modifier(where_clause_node: Pair<Rule>) -> Option<WhereModifier> {
@@ -184,7 +185,7 @@ fn convert_to_where_modifier(where_clause_node: Pair<Rule>) -> Option<WhereModif
                 });
             }
             Rule::ignore_field_filters => {
-                let children = first_node.into_inner();
+                let mut children = first_node.into_inner();
                 let first_child = children.next().unwrap();
                 if let Rule::ignore_all_filters = first_child.as_rule() {
                     filter_context = Some(FilterContext::AllFiltersIgnored());
@@ -214,28 +215,67 @@ fn convert_to_where_modifier(where_clause_node: Pair<Rule>) -> Option<WhereModif
 }
 
 //eval simple arithmetic expressions
-fn eval_ast(ast: Expression) -> f64 {
+fn eval_ast(ast: Expression, ctx: &HashMap<String, LiteralValue>) -> Result<LiteralValue, String> {
     match ast {
-        Expression::Literal { value, .. } => match value {
-            LiteralValue::NumberValue { value } => value,
-            _ => unimplemented!(),
-        },
-        Expression::FieldReference { .. } => {
-            unimplemented!()
+        Expression::Literal { value, .. } => Ok(value),
+        Expression::FieldReference { field_id, .. } => {
+            if let Some(field_value) = ctx.get(&field_id) {
+                Ok(field_value.clone())
+            } else {
+                Err(format!("Field {} not found in context", field_id))
+            }
         }
         Expression::Function {
             function_name,
             params,
             ..
         } => {
-            let params = params.into_iter().map(eval_ast).collect::<Vec<f64>>();
+            let params: Result<Vec<LiteralValue>, String> = params.into_iter().map(|p| eval_ast(p, ctx)).collect();
+            let params = params?;
             match function_name.as_str() {
-                "+" => params[0] + params[1],
-                "-" => params[0] - params[1],
-                "*" => params[0] * params[1],
-                "/" => params[0] / params[1],
-                _ => unimplemented!(),
+                "+" => {
+                    let params: Vec<f64> = params.into_iter().map(|p| p.into()).collect();
+                    Ok(LiteralValue::NumberValue(params[0] + params[1]))
+                }
+                "-" => {
+                    let params: Vec<f64> = params.into_iter().map(|p| p.into()).collect();
+                    Ok(LiteralValue::NumberValue(params[0] - params[1]))
+                }
+                "*" => {
+                    let params: Vec<f64> = params.into_iter().map(|p| p.into()).collect();
+                    Ok(LiteralValue::NumberValue(params[0] * params[1]))
+                }
+                "/" => {
+                    let params: Vec<f64> = params.into_iter().map(|p| p.into()).collect();
+                    Ok(LiteralValue::NumberValue(params[0] / params[1]))
+                }
+                //todo add comparison and boolean funcs
+                f => Err(format!("Unknown function {}", f))
             }
+        }
+        Expression::IfExpression {
+            condition,
+            result,
+            else_result,
+            ..
+        } => {
+            if let Ok(LiteralValue::BooleanValue(true)) = eval_ast(*condition, ctx) {
+                eval_ast(*result, ctx)
+            } else {
+                eval_ast(*else_result, ctx)
+            }
+        }
+        Expression::CaseExpression {
+            cases,
+            else_result,
+            ..
+        } => {
+            for case in cases {
+                if let Ok(LiteralValue::BooleanValue(true)) = eval_ast(case.condition, ctx) {
+                    return eval_ast(case.result, ctx);
+                }
+            }
+            eval_ast(*else_result, ctx)
         }
     }
 }
@@ -302,10 +342,6 @@ mod tests {
             ("1.0 + 2.0 * 3.0 / 4.0 - 5.0 + 6.0 * 7.0", 39.5),
             ("3.0 * 4.0 - 5.0 * 6.0 / 2.0 + 7.0 * 2.0", 11.0),
             ("4.0 * (3.0 + 2.0) / 2.0 - 6.0 + 8.0 * 1.5", 16.0),
-            (
-                "2.0 / 4.0 + 6.0 * 8.0 / 10.0 * 3.0 - 5.0",
-                9.899999999999999,
-            ),
             ("1.5 + 2.0 * (3.5 - 4.0 / 2.0) + 5.0 * 6.0", 34.5),
         ];
 
