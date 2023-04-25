@@ -3,6 +3,7 @@ use pest::Parser;
 use crate::{convert_to_ast, ExpressionParser, Rule};
 use crate::ast::{field_ref, func, lit_num};
 
+//todo think about a cool macro to write tests in a declarative manner
 #[test]
 fn test_valid_arithmetic_expressions() {
     let expressions = vec![

@@ -2,28 +2,27 @@
 pub enum Expression {
     Literal {
         value: LiteralValue,
-        where_modifier: Option<WhereModifier>,
     },
     FieldReference {
         field_id: String,
-        where_modifier: Option<WhereModifier>,
     },
     Function {
         function_name: String,
         params: Vec<Expression>,
-        where_modifier: Option<WhereModifier>,
-        group_by_modifier: Option<WhereModifier>,
     },
     IfExpression {
         condition: Box<Expression>,
         result: Box<Expression>,
         else_result: Box<Expression>,
-        where_modifier: Option<WhereModifier>,
     },
     CaseExpression {
         cases: Vec<CaseBranch>,
         else_result: Box<Expression>,
+    },
+    ModifierExpression {
+        expression: Box<Expression>,
         where_modifier: Option<WhereModifier>,
+        group_by_modifier: Option<GroupByModifier>,
     },
 }
 
@@ -111,28 +110,24 @@ impl Into<bool> for LiteralValue {
 pub fn lit_str(value: &str) -> Expression {
     Expression::Literal {
         value: LiteralValue::StringValue(value.to_string()),
-        where_modifier: None,
     }
 }
 
 pub fn lit_num(value: f64) -> Expression {
     Expression::Literal {
         value: LiteralValue::NumberValue(value),
-        where_modifier: None,
     }
 }
 
 pub fn lit_bool(value: bool) -> Expression {
     Expression::Literal {
         value: LiteralValue::BooleanValue(value),
-        where_modifier: None,
     }
 }
 
 pub fn field_ref(field_id: &str) -> Expression {
     Expression::FieldReference {
         field_id: field_id.to_string(),
-        where_modifier: None,
     }
 }
 
@@ -140,8 +135,6 @@ pub fn func(function_name: &str, params: Vec<Expression>) -> Expression {
     Expression::Function {
         function_name: function_name.to_string(),
         params,
-        where_modifier: None,
-        group_by_modifier: None,
     }
 }
 
@@ -150,7 +143,6 @@ pub fn if_expr(condition: Expression, result: Expression, else_result: Expressio
         condition: Box::new(condition),
         result: Box::new(result),
         else_result: Box::new(else_result),
-        where_modifier: None,
     }
 }
 
@@ -158,7 +150,6 @@ pub fn case_expr(cases: Vec<CaseBranch>, else_result: Expression) -> Expression 
     Expression::CaseExpression {
         cases,
         else_result: Box::new(else_result),
-        where_modifier: None,
     }
 }
 

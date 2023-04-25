@@ -1,7 +1,7 @@
-use std::collections::HashMap;
 use pest::iterators::Pair;
 use pest::Parser;
 use pest_derive::Parser;
+use std::collections::HashMap;
 
 use crate::ast::*;
 
@@ -45,11 +45,19 @@ pub fn convert_to_ast(expr: Pair<Rule>) -> Expression {
                     }
                 }
 
-                Expression::Function {
+                let func = Expression::Function {
                     function_name: rule.as_str().to_string(),
                     params,
-                    where_modifier,
-                    group_by_modifier: None,
+                };
+
+                if let Some(_) = where_modifier {
+                    Expression::ModifierExpression {
+                        expression: Box::new(func),
+                        where_modifier,
+                        group_by_modifier: None,
+                    }
+                } else {
+                    func
                 }
             } else {
                 //otherwise, just return the first operand
@@ -70,16 +78,12 @@ pub fn convert_to_ast(expr: Pair<Rule>) -> Expression {
                         convert_to_ast(first_operand),
                         convert_to_ast(child_pairs.next().unwrap()),
                     ],
-                    where_modifier: None,
-                    group_by_modifier: None,
                 };
                 //append all other operands to the tree
                 while let Some(op_rule) = child_pairs.next() {
                     left = Expression::Function {
                         function_name: op_rule.as_str().to_string(),
                         params: vec![left, convert_to_ast(child_pairs.next().unwrap())],
-                        where_modifier: None,
-                        group_by_modifier: None,
                     };
                 }
 
@@ -93,11 +97,20 @@ pub fn convert_to_ast(expr: Pair<Rule>) -> Expression {
             let first_node = child_pairs.next().unwrap();
             if let Rule::not_op = first_node.as_rule() {
                 let second_node = child_pairs.next().unwrap();
-                Expression::Function {
+                let func = Expression::Function {
                     function_name: first_node.as_str().to_string(),
                     params: vec![convert_to_ast(second_node)],
-                    where_modifier: None,
-                    group_by_modifier: None,
+                };
+
+                if let Some(where_clause) = child_pairs.next() {
+                    let where_modifier = convert_to_where_modifier(where_clause);
+                    Expression::ModifierExpression {
+                        expression: Box::new(func),
+                        where_modifier,
+                        group_by_modifier: None,
+                    }
+                } else {
+                    func
                 }
             } else {
                 convert_to_ast(first_node)
@@ -110,8 +123,6 @@ pub fn convert_to_ast(expr: Pair<Rule>) -> Expression {
             Expression::Function {
                 function_name: function.as_str().to_string(),
                 params: params.into_inner().map(convert_to_ast).collect(),
-                where_modifier: None,
-                group_by_modifier: None,
             }
         }
         Rule::if_expr => {
@@ -120,31 +131,23 @@ pub fn convert_to_ast(expr: Pair<Rule>) -> Expression {
                 condition: Box::new(convert_to_ast(children.next().unwrap())),
                 result: Box::new(convert_to_ast(children.next().unwrap())),
                 else_result: Box::new(convert_to_ast(children.next().unwrap())),
-                where_modifier: None,
             }
         }
         Rule::string_literal => Expression::Literal {
             value: LiteralValue::StringValue(expr.as_str().to_string()),
-            where_modifier: None,
         },
         Rule::integer => Expression::Literal {
             value: LiteralValue::NumberValue(expr.as_str().parse::<f64>().unwrap()),
-            where_modifier: None,
         },
         Rule::float => Expression::Literal {
             value: LiteralValue::NumberValue(expr.as_str().parse::<f64>().unwrap()),
-            where_modifier: None,
         },
         Rule::boolean_literal => Expression::Literal {
             value: LiteralValue::BooleanValue(expr.as_str().parse::<bool>().unwrap()),
-            where_modifier: None,
         },
-        Rule::field_reference => {
-            Expression::FieldReference {
-                field_id: expr.as_str().to_string(),
-                where_modifier: None,
-            }
-        }
+        Rule::field_reference => Expression::FieldReference {
+            field_id: expr.as_str().to_string(),
+        },
         _ => unreachable!(),
     }
 }
@@ -230,7 +233,8 @@ fn eval_ast(ast: Expression, ctx: &HashMap<String, LiteralValue>) -> Result<Lite
             params,
             ..
         } => {
-            let params: Result<Vec<LiteralValue>, String> = params.into_iter().map(|p| eval_ast(p, ctx)).collect();
+            let params: Result<Vec<LiteralValue>, String> =
+                params.into_iter().map(|p| eval_ast(p, ctx)).collect();
             let params = params?;
             match function_name.as_str() {
                 "+" => {
@@ -250,7 +254,7 @@ fn eval_ast(ast: Expression, ctx: &HashMap<String, LiteralValue>) -> Result<Lite
                     Ok(LiteralValue::NumberValue(params[0] / params[1]))
                 }
                 //todo add comparison and boolean funcs
-                f => Err(format!("Unknown function {}", f))
+                f => Err(format!("Unknown function {}", f)),
             }
         }
         Expression::IfExpression {
@@ -266,9 +270,7 @@ fn eval_ast(ast: Expression, ctx: &HashMap<String, LiteralValue>) -> Result<Lite
             }
         }
         Expression::CaseExpression {
-            cases,
-            else_result,
-            ..
+            cases, else_result, ..
         } => {
             for case in cases {
                 if let Ok(LiteralValue::BooleanValue(true)) = eval_ast(case.condition, ctx) {
@@ -277,6 +279,9 @@ fn eval_ast(ast: Expression, ctx: &HashMap<String, LiteralValue>) -> Result<Lite
             }
             eval_ast(*else_result, ctx)
         }
+        Expression::ModifierExpression { .. }  => {
+            unimplemented!()
+        } 
     }
 }
 
