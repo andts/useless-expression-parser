@@ -217,6 +217,79 @@ fn convert_to_where_modifier(where_clause_node: Pair<Rule>) -> Option<WhereModif
     }
 }
 
+
+//Convert expression AST to WebAssembly Text format
+fn convert_ast_to_wat(ast: Expression, ctx: &HashMap<String, LiteralValue>) -> Result<String, String> {
+    match ast {
+        Expression::Literal { value, .. } => match value {
+            LiteralValue::StringValue(s) => Ok(format!("(i32.const {})", s)),
+            LiteralValue::NumberValue(n) => Ok(format!("(i32.const {})", n)),
+            LiteralValue::BooleanValue(b) => Ok(format!("(i32.const {})", b)),
+        },
+        Expression::FieldReference { field_id, .. } => {
+            if let Some(field_value) = ctx.get(&field_id) {
+                convert_ast_to_wat(Expression::Literal { value: field_value.clone() }, ctx)
+            } else {
+                Err(format!("Field {} not found in context", field_id))
+            }
+        }
+        Expression::Function {
+            function_name,
+            params,
+            ..
+        } => {
+            let params: Result<Vec<String>, String> =
+                params.into_iter().map(|p| convert_ast_to_wat(p, ctx)).collect();
+            let params = params?;
+            match function_name.as_str() {
+                "+" => {
+                    let params: Vec<f64> = params.into_iter().map(|p| p.parse::<f64>().unwrap()).collect();
+                    Ok(format!("(i32.add {} {})", params[0], params[1]))
+                }
+                "-" => {
+                    let params: Vec<f64> = params.into_iter().map(|p| p.parse::<f64>().unwrap()).collect();
+                    Ok(format!("(i32.sub {} {})", params[0], params[1]))
+                }
+                "*" => {
+                    let params: Vec<f64> = params.into_iter().map(|p| p.parse::<f64>().unwrap()).collect();
+                    Ok(format!("(i32.mul {} {})", params[0], params[1]))
+                }
+                "/" => {
+                    let params: Vec<f64> = params.into_iter().map(|p| p.parse::<f64>().unwrap()).collect();
+                    Ok(format!("(i32.div_s {} {})", params[0], params[1]))
+                }
+                "==" => {
+                    let params: Vec<f64> = params.into_iter().map(|p| p.parse::<f64>().unwrap()).collect();
+                    Ok(format!("(i32.eq {} {})", params[0], params[1]))
+                }
+                "!=" => {
+                    let params: Vec<f64> = params.into_iter().map(|p| p.parse::<f64>().unwrap()).collect();
+                    Ok(format!("(i32.ne {} {})", params[0], params[1]))
+                }
+                ">" => {
+                    let params: Vec<f64> = params.into_iter().map(|p| p.parse::<f64>().unwrap()).collect();
+                    Ok(format!("(i32.gt_s {} {})", params[0], params[1]))
+                }
+                "<" => {
+                    let params: Vec<f64> = params.into_iter().map(|p| p.parse::<f64>().unwrap()).collect();
+                    Ok(format!("(i32.lt_s {} {})", params[0], params[1]))
+                }
+                ">=" => {
+                    let params: Vec<f64> = params.into_iter().map(|p| p.parse::<f64>().unwrap()).collect();
+                    Ok(format!("(i32.ge_s {} {})", params[0], params[1]))
+                }
+                "<=" => {
+                    let params: Vec<f64> = params.into_iter().map(|p| p.parse::<f64>().unwrap()).collect();
+                    Ok(format!("(i32.le_s {} {})", params[0], params[1]))
+                }
+                _ => {}
+            }
+        }
+        _ => {}
+    }
+}
+
+
 //eval simple arithmetic expressions
 fn eval_ast(ast: Expression, ctx: &HashMap<String, LiteralValue>) -> Result<LiteralValue, String> {
     match ast {
@@ -279,9 +352,9 @@ fn eval_ast(ast: Expression, ctx: &HashMap<String, LiteralValue>) -> Result<Lite
             }
             eval_ast(*else_result, ctx)
         }
-        Expression::ModifierExpression { .. }  => {
+        Expression::ModifierExpression { .. } => {
             unimplemented!()
-        } 
+        }
     }
 }
 
