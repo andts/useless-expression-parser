@@ -3,11 +3,27 @@ use pest::Parser;
 use crate::{convert_to_ast, ExpressionParser, Rule};
 use crate::ast::{field_ref, func, lit_num};
 
-//todo think about a cool macro to write tests in a declarative manner
+macro_rules! ast_test {
+    ($name:ident, $expr:expr, $expected:expr) => {
+        #[test]
+        fn $name() {
+            let mut result = ExpressionParser::parse(Rule::expression_input, $expr).unwrap();
+            let ast = convert_to_ast(result.next().unwrap());
+            assert_eq!(ast, $expected, "Expression '{}' translated into incorrect AST", $expr);
+        }
+    };
+}
+
+ast_test!(test_addition, 
+    "field1 + 43", 
+    func("+", vec![field_ref("field1"), lit_num(43_f64)]));
+ast_test!(test_multiplication, "field1.field2 * 3.14", func("*", vec![field_ref("field1.field2"), lit_num(3.14_f64)]));
+ast_test!(test_complex_expression, "(field1 + field2) * (field3 / field4)", func("*", vec![func("+", vec![field_ref("field1"), field_ref("field2")]), func("/", vec![field_ref("field3"), field_ref("field4")])])); 
+
 #[test]
 fn test_valid_arithmetic_expressions() {
     let expressions = vec![
-        ("field1 + 42", func("+", vec![field_ref("field1"), lit_num(43_f64)])),
+        ("field1 + 42", func("+", vec![field_ref("field1"), lit_num(42_f64)])),
         // "field1.field2 * 3.14",
         // "(field1 + field2) * (field3 / field4)",
         // "field1 - field2.field3 + 42 * 7.5",
